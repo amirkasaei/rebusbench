@@ -1,7 +1,10 @@
 # RebusBench for Evaluating Cognitive Visual Reasoning
 
+![](docs/static/images/main.png "Samples")
+
 This repository contains the full code and dataset structure used in a research project evaluating how well modern Vision‑Language Models (VLMs) can solve **Rebus puzzles**.  
 The evaluation pipeline is implemented in a single Jupyter notebook named **`eval.ipynb`**, which loads puzzle images, prompts multiple VLMs, and computes accuracy and F1‑based performance metrics.
+
 
 ---
 
