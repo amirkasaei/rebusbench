@@ -1,5 +1,7 @@
 # RebusBench for Evaluating Cognitive Visual Reasoning
 
+[![arXiv](https://img.shields.io/badge/arXiv-Paper-red.svg)](https://arxiv.org/abs/2604.01764)
+
 ![](docs/static/images/main.png "Samples")
 
 This repository contains the full code and dataset structure used in a research project evaluating how well modern Vision‑Language Models (VLMs) can solve **Rebus puzzles**.  
