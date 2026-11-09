@@ -1,0 +1,11 @@
+# Dependencies for example_evaluation.ipynb; not a tested environment lockfile.
+torch
+torchvision
+pandas
+Pillow
+transformers>=4.57,<5
+accelerate
+tqdm
+qwen-vl-utils
+sentencepiece
+notebook

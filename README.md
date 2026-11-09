@@ -2,228 +2,104 @@
 
 [![arXiv](https://img.shields.io/badge/arXiv-Paper-red.svg)](https://arxiv.org/abs/2604.01764)
 
-![](docs/static/images/main.png "Samples")
+![Example rebus puzzles](docs/static/images/main.png)
 
-This repository contains the full code and dataset structure used in a research project evaluating how well modern Vision‑Language Models (VLMs) can solve **Rebus puzzles**.  
-The evaluation pipeline is implemented in a single Jupyter notebook named **`eval.ipynb`**, which loads puzzle images, prompts multiple VLMs, and computes accuracy and F1‑based performance metrics.
+RebusBench contains **1,164 English rebus puzzles** for evaluating visual-language models on visual wordplay and reasoning. Each puzzle represents a word or phrase through visual arrangement, repetition, color, position, or size of text and symbols.
 
+[Dataset on Hugging Face](https://huggingface.co/datasets/amirkasaei/rebusbench) | [Project website](https://amirkasaei.github.io/rebusbench/) | [Paper](https://openreview.net/forum?id=LCc2CP4aS4)
 
----
+## Load the dataset
 
-## 📌 Project Overview
-
-Rebus puzzles are visual wordplay riddles that require multimodal reasoning. This project benchmarks several state‑of‑the‑art VLMs to measure their ability to interpret images with symbolic, spatial, and linguistic cues.
-
-The evaluation includes models from multiple families:
-
-- LLaVA
-- InternVL
-- Qwen2.5‑VL
-- Qwen3‑VL
-
-For each model, the notebook performs:
-
-- Image preprocessing (including InternVL tiling pipeline)
-- Structured prompting
-- Model inference
-- Prediction cleaning and normalization
-- Exact‑match accuracy
-- Token‑level F1 scoring
-- Per‑puzzle result logging
-- Aggregated benchmark statistics (`summary.csv`)
-
----
-
-## 📂 Repository Structure
-
-```
-.
-├── eval.ipynb                 # Main evaluation notebook
-├── data/                # Folder containing all rebus puzzle images
-├── Rebus Puzzle.xlsx          # Ground‑truth answers
-├── agg_results/               # Auto‑generated evaluation outputs
-│   ├── *.csv
-│   ├── *.jsonl
-│   └── summary.csv
+```bash
+pip install -U datasets Pillow
 ```
 
----
+```python
+from datasets import load_dataset
 
-## 🧠 Evaluation Prompt Used
+dataset = load_dataset(
+    "amirkasaei/rebusbench",
+    revision="v1.5",
+    split="test",
+)
 
-Every model receives the **exact same, fixed prompt** to ensure fair comparison across VLMs.
-
-```
-You are given an image that represents a rebus puzzle (a visual
-word riddle).
-A rebus puzzle encodes a common English word or phrase using
-visual layout, repetition, color, position, or size of text and
-symbols.
-Do NOT read the image literally.
-Instead, infer the hidden word or idiomatic expression suggested
-by the visual arrangement.
-
-Examples:
-- The word 'MAN' written three times means 'three men'.
-- The word 'READ' placed inside a box means 'read between the lines'.
-- A red letter 'E' followed by 'GO GO' means 'ready to go'.
-
-Question: What English word or phrase is represented?
-
-Return ONLY the final answer in 1–5 words.
-Do not explain.
+print(len(dataset))  # 1164
+sample = dataset[0]
+image = sample["image"]  # PIL image
+print(sample["puzzle_id"], sample["answers"])
 ```
 
-This prompt is stored in the notebook as `PROMPT_MAIN` and is passed to every model’s inference function.
+The complete collection is packaged as one `test` split. No training or validation split is provided; this split name does not establish exclusion from any model's training data.
 
----
+| Field | Description |
+| --- | --- |
+| `image` | Puzzle image, decoded as a PIL image |
+| `puzzle_id` | Unique integer from 1 through 1164 |
+| `answers` | Nonempty list of normalized English reference answers |
 
-## 🧠 How the Evaluation Works
+The local images and `data/metadata.jsonl` match the Hugging Face v1.5 dataset. Each metadata record contains `file_name` (relative to `data/`), `puzzle_id`, and `answers`.
 
-### 1. Load Puzzle Data  
-The notebook loads puzzle images from:
+## Reference answers and evaluation
 
+There are **1,198 references** across 1,164 puzzles: 1,131 puzzles have one reference, and 33 have multiple references. Slash-separated alternatives from the original workbook are stored as separate list entries. For example, puzzle 50 has `answers = ["farm animal", "animal farm"]`.
+
+Normalization applies Unicode NFKC normalization, Unicode case folding, and whitespace collapsing. Punctuation, accents, spelling, and word order are not otherwise changed. Reference order is retained and does not indicate a preferred answer.
+
+Apply the same normalization to predictions. Exact match accepts any supplied reference; token F1 should take the highest score across references for each puzzle before averaging.
+
+```python
+import unicodedata
+
+def normalize(text):
+    return " ".join(unicodedata.normalize("NFKC", text).casefold().split())
+
+def exact_match(prediction, answers):
+    return normalize(prediction) in answers
+
+assert exact_match(" ANIMAL   FARM ", ["farm animal", "animal farm"])
 ```
+
+References may not cover every valid phrasing. Interpretation can depend on English idioms and visual conventions. The alternatives are retained from the original annotations and have not been independently revalidated.
+
+## Repository layout
+
+```text
+README.md
 data/
+   metadata.jsonl              Image filenames, puzzle IDs, and reference answers
+   puzzle_1.png ... puzzle_1164.png
+examples/
+   example_evaluation.ipynb     Original sample evaluation code
+   requirements.txt            Suggested sample dependencies
+docs/
+   index.html                  GitHub Pages website
+   static/                     Website CSS, JavaScript, images, and animations
 ```
 
-And reads ground‑truth answers from the Excel file:
+## Sample evaluation notebook
 
-```
-Rebus Puzzle.xlsx
-```
-
-Puzzle metadata (`puzzleid`, path, ground‑truth) is wrapped into a custom PyTorch `Dataset` class named **`RebusDataset`**.
-
----
-
-### 2. Prompting Strategy  
-All models receive the **same fixed prompt** (shown above), ensuring controlled, comparable evaluation.
-
----
-
-### 3. Text Normalization  
-Predictions and labels are cleaned using:
-
-- lowercasing  
-- punctuation removal  
-- whitespace normalization  
-
-This enables robust string comparison.
-
----
-
-### 4. Metrics  
-Two evaluation metrics are computed:
-
-- **Exact Match** — strict correctness  
-- **Token‑F1** — similarity between predicted and gold tokens  
-
-Results are logged per puzzle and aggregated per model.
-
----
-
-### 5. Results Output  
-Each model produces:
-
-- `{model_name}.csv` — per‑puzzle scores  
-- `{model_name}.jsonl` — raw predictions  
-- `summary.csv` — global leaderboard of all evaluated models  
-
-All outputs are written into:
-
-```
-agg_results/
-```
-
----
-
-## ⚙️ Installation
-
-To run this project, you need Python ≥ 3.10 and PyTorch with CUDA (optional but recommended).
-
-### 1. Clone the repo
-```bash
-git clone https://github.com/yourusername/rebus-vlm-benchmark.git
-cd rebus-vlm-benchmark
-```
-
-### 2. Install dependencies
-```bash
-pip install -r requirements.txt
-```
-
-The notebook uses:
-
-- torch  
-- pandas  
-- pillow  
-- transformers  
-- tqdm  
-- torchvision  
-- openpyxl  
-
-(Ensure these are present in your environment.)
-
----
-
-## 🚀 Running the Evaluation
-
-1. Place all puzzle images inside:
-
-```
-data/
-```
-
-2. Ensure the answer file is named:
-
-```
-Rebus Puzzle.xlsx
-```
-
-3. Open and run the notebook:
+`examples/example_evaluation.ipynb` is optional sample code for evaluating LLaVA, InternVL, Qwen2.5-VL, and Qwen3-VL. Its contents are unchanged. It is separate from dataset loading and is not a fully validated reproduction package.
 
 ```bash
-jupyter notebook eval.ipynb
+git clone https://github.com/amirkasaei/rebusbench.git
+cd rebusbench
+pip install -r examples/requirements.txt
+jupyter notebook examples/example_evaluation.ipynb
 ```
 
-4. Execute all cells sequentially.  
-   The notebook will:
+Adapt its original data paths, Excel-based label loading, model paths, and inference settings before running. The spreadsheet has been replaced by `data/metadata.jsonl`, which was checked against all original workbook records. The sample's original label loader does not consume the new metadata or handle reference alternatives automatically. Its generated outputs go to `agg_results/`. The dependency list is a starting point, not a verified lockfile.
 
-- load the dataset  
-- build inference functions for all registered models  
-- run evaluation  
-- save results to `agg_results/`  
+## Project website
 
----
+GitHub Pages uses `docs/`. The website and all existing assets are preserved at their original paths.
 
-## 📊 Understanding Outputs
+## Data provenance and license
 
-Inside `agg_results/`, you'll find:
+The JSONL metadata was derived from the original answer workbook by splitting alternatives on `/` and applying the documented normalization. All 1,164 records and 1,198 references were checked against the workbook before removing the redundant spreadsheet. Puzzle images are unchanged. Detailed collection and annotation procedures and a dataset license have not yet been documented in this repository.
 
-- per‑model CSV files  
-- JSONL files with raw predictions  
-- `summary.csv` (the overall leaderboard)
+## Citation
 
-Example per‑puzzle fields:
-
-```
-puzzleid, image_path, ground_truth, prediction, exact_match, f1
-```
-
----
-
-## ✨ Notes & Extensibility
-
-- Add new models by editing the `MODELS` list in `eval.ipynb`.  
-- Tweak the evaluation prompt if you want to test different reasoning behaviors.  
-- InternVL tiling utilities handle high‑resolution images automatically.  
-
----
-
-## 📄 Citation
-
-```
+```bibtex
 @inproceedings{kasaei2026rebusbench,
     title={Hidden Meanings in Plain Sight: RebusBench for Evaluating Cognitive Visual Reasoning},
     author={Seyed Amir Kasaei and Arash Marioriyad and Mahbod Khaleti and MohammadAmin Fazli and Mahdieh Soleymani Baghshah and Mohammad Hossein Rohban},
@@ -232,4 +108,3 @@ puzzleid, image_path, ground_truth, prediction, exact_match, f1
     url={https://openreview.net/forum?id=LCc2CP4aS4}
 }
 ```
----
